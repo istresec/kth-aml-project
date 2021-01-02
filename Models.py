@@ -131,11 +131,12 @@ class GatedDenseLayer(Layer):
     def build(self, input_shape):
         self.h.build(input_shape)
         self.g.build(input_shape)
+	super(GatedDenseLayer, self).build(input_shape)
 
     def call(self, inputs, **kwargs):
         h = self.h(inputs)
         if self.activation is not None:
             h = self.activation(self.h(inputs))
 
-        g = tf.nn.sigmoid(inputs)
-        return h #tf.math.multiply(h, g) <<-- OVO TREBA SKUZIT KAKO NAPRAVITI ???
+        g = tf.nn.sigmoid(self.g(inputs))
+        return tf.math.multiply(h, g)
