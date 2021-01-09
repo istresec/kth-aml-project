@@ -34,18 +34,13 @@ def mnist_static_load(params):
         lines = file.readlines()
     x_test = convert(lines).astype('float32')
 
-    # dummies
-    y_train = np.zeros((x_train.shape[0], 1))
-    y_val = np.zeros((x_val.shape[0], 1))
-    y_test = np.zeros((x_test.shape[0], 1))
-
-    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    train_dataset = tf.data.Dataset.from_tensor_slices(x_train)
     train_dataset = train_dataset.shuffle(buffer_size=1024, seed=seed).batch(batch_size)
 
-    val_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+    val_dataset = tf.data.Dataset.from_tensor_slices(x_val)
     val_dataset = val_dataset.batch(batch_size)
 
-    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    test_dataset = tf.data.Dataset.from_tensor_slices(x_test)
     test_dataset = test_dataset.batch(batch_size)
 
     return train_dataset, val_dataset, test_dataset
@@ -61,7 +56,7 @@ def mnist_load(params):
     seed = int(params['seed'])
     batch_size = int(params['batch-size'])
 
-    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+    (x_train, _), (x_test, _) = tf.keras.datasets.mnist.load_data()
     x_train = np.reshape(x_train, (-1, 784)) / 255.
     x_test = np.reshape(x_test, (-1, 784)) / 255.
 
@@ -71,17 +66,15 @@ def mnist_load(params):
 
     # Use 10000 samples for validation
     x_val = x_train[-10000:]
-    y_val = y_train[-10000:]
     x_train = x_train[:-10000]
-    y_train = y_train[:-10000]
 
-    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    train_dataset = tf.data.Dataset.from_tensor_slices(x_train)
     train_dataset = train_dataset.shuffle(buffer_size=1024, seed=seed).batch(batch_size)
 
-    val_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+    val_dataset = tf.data.Dataset.from_tensor_slices(x_val)
     val_dataset = val_dataset.batch(batch_size)
 
-    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    test_dataset = tf.data.Dataset.from_tensor_slices(x_test)
     test_dataset = test_dataset.batch(batch_size)
 
     return train_dataset, val_dataset, test_dataset
