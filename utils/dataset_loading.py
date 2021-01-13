@@ -3,9 +3,6 @@ import os
 import tensorflow as tf
 from scipy.io import loadmat
 
-def convert(lines):
-    return np.array([[int(num) for num in line.split()] for line in lines])
-
 def load_dataset(params):
     """
     Function which loads chosen dataset
@@ -25,6 +22,8 @@ def mnist_static_load(params):
 
     seed = int(params['seed'])
     batch_size = int(params['batch-size'])
+
+    convert = lambda lines: np.array([[int(num) for num in line.split()] for line in lines])
 
     with open(os.path.join('datasets', 'mnist', 'binarized_mnist_train.amat')) as file:
         lines = file.readlines()
@@ -177,8 +176,8 @@ def caltech101_load(params):
 
 loaders = {
     'mnist': mnist_load,
-    'mnist-static': mnist_static_load
+    'mnist-static': mnist_static_load,
+    'fashion-mnist': fashion_mnist_load,
+    'omniglot': omniglot_load,
+    'caltech101': caltech101_load
 }
-
-if __name__ == "__main__":
-    caltech101_load({'seed': 1, 'batch-size': 28, 'binary': False})
