@@ -2,8 +2,8 @@ import numpy as np
 import os
 import tensorflow as tf
 
-from models.VAE_2 import compute_loss, VAE
-from trainers.vae2_trainer import VAE2Trainer
+from models.VAE import compute_loss, VAE
+from trainers.vae_trainer import VAETrainer
 from utils.util import project_path, ensure_dirs, load_mnist
 
 if __name__ == '__main__':
@@ -15,12 +15,15 @@ if __name__ == '__main__':
     config = dict()
     config['run_name'] = run_name
     config['hidden_dim'] = 300
-    config['latent_dim'] = 2
-    config['epochs'] = 20
-    config['batch_size'] = 32
+    config['latent_dim'] = 40
+    config['epochs'] = 100
+    config['batch_size'] = 128
     config['logging_interval'] = 1
     config['summary_dir'] = os.path.join(project_path, f"tb/{run_name}")
     config['checkpoint_dir'] = os.path.join(project_path, f"checkpoints/{run_name}")
+
+    config['prior'] = 'vampprior'  # or sg
+    config['vamp_components'] = 500
 
     ensure_dirs([config["summary_dir"], config["checkpoint_dir"]])
 
@@ -32,5 +35,5 @@ if __name__ == '__main__':
     loss_function = compute_loss
     writer = tf.summary.create_file_writer(config["summary_dir"])
 
-    trainer = VAE2Trainer(optimizer, model, train_dataset, valid_dataset, loss_function, config, writer)
+    trainer = VAETrainer(optimizer, model, train_dataset, valid_dataset, loss_function, config, writer)
     trainer.train()

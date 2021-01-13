@@ -2,7 +2,7 @@ import tensorflow as tf
 import time
 
 
-class VAE2Trainer:
+class VAETrainer:
     def __init__(self, optimizer, model, train_dataset, valid_dataset, loss_function, config, writer):
         self.optimizer = optimizer
         self.model = model
