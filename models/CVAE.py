@@ -1,6 +1,8 @@
 import tensorflow as tf
 from functools import reduce
 
+from utils.util import log_normal_pdf
+
 
 class CVAE(tf.keras.Model):
     """
@@ -14,12 +16,13 @@ class CVAE(tf.keras.Model):
     q(z given x) is modeled by a log-normal distribution.
     """
 
-    def __init__(self, parameters):
+    def __init__(self, config):
         super().__init__()
 
-        self.latent_dim = parameters["latent_dim"]
+        self.config = config
+        self.latent_dim = config["latent-dim"]
 
-        self.input_shape_ = parameters["input_shape"]
+        self.input_shape_ = config["input-shape"]
         input_element_length = reduce(lambda x, y: x * y, self.input_shape_)
         if input_element_length != 28 * 28:
             # TODO implement if needed. The CVAE wont work for other dimensions because
@@ -70,6 +73,10 @@ class CVAE(tf.keras.Model):
             probs = tf.sigmoid(logits)
             return probs
         return logits
+
+    def prior(self, z):
+        logz = log_normal_pdf(z, 0., 0.)
+        return logz
 
     def generate_x(self, n=1):
         # TODO

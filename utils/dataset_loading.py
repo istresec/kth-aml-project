@@ -66,8 +66,8 @@ def mnist_load(params):
     x_test = np.random.binomial(1, x_test)
 
     # Use 10000 samples for validation
-    x_val = x_train[-10000:]
-    x_train = x_train[:-10000]
+    x_val = tf.cast(x_train[-10000:], dtype=tf.float32)
+    x_train = tf.cast(x_train[:-10000], dtype=tf.float32)
 
     train_dataset = tf.data.Dataset.from_tensor_slices(x_train)
     train_dataset = train_dataset.shuffle(buffer_size=1024, seed=seed).batch(batch_size)

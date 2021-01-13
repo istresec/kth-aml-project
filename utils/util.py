@@ -33,11 +33,11 @@ def log_normal_pdf(sample, mean, logvar, raxis=1):
 
 
 def load_mnist(batch_size):
+    # TODO remove
+
     def preprocess_images(images):
         images = images.reshape((images.shape[0], 28, 28, 1)) / 255.
         return np.where(images > .5, 1., 0.).astype("float32")
-
-    # TODO make a valid_dataset not a test_dataset
 
     (train_images, _), (test_images, _) = tf.keras.datasets.mnist.load_data()
     train_images = preprocess_images(train_images)

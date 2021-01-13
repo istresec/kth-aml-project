@@ -17,13 +17,13 @@ class VAE(tf.keras.Model):
     q(z given x) is modeled by a log-normal distribution.
     """
 
-    def __init__(self, parameters):
+    def __init__(self, config):
         super().__init__()
 
-        self.params = parameters
-        self.latent_dim = parameters["latent_dim"]
-        self.hidden_dim = parameters["hidden_dim"]
-        self.input_shape_ = parameters["input_shape"]
+        self.config = config
+        self.latent_dim = config["latent-dim"]
+        self.hidden_dim = config["hidden-dim"]
+        self.input_shape_ = config["input-shape"]
         input_element_length = reduce(lambda x, y: x * y, self.input_shape_)
 
         self.encoder = tf.keras.Sequential([
@@ -49,8 +49,8 @@ class VAE(tf.keras.Model):
             tf.keras.layers.Reshape(target_shape=self.input_shape_)
         ])
 
-        if self.params['prior'] == 'vampprior':
-            self.components = self.params['vamp_components']
+        if self.config['prior'] == 'vampprior':
+            self.components = self.config['vamp-components']
 
             self.means = tf.keras.Sequential([
                 tf.keras.Input(shape=(self.components,)),
@@ -66,12 +66,12 @@ class VAE(tf.keras.Model):
         return self.decode(eps, apply_sigmoid=True)
 
     def prior(self, z):
-        if self.params['prior'] == 'sg':
+        if self.config['prior'] == 'sg':
             logz = log_normal_pdf(z, 0., 0.)
 
             return logz
 
-        elif self.params['prior'] == 'vampprior':
+        elif self.config['prior'] == 'vampprior':
             c = tf.cast(self.components, tf.float32)
             pseudo_inputs = self.means(self.idle_input)
 
@@ -109,9 +109,9 @@ class VAE(tf.keras.Model):
     def generate_x(self, n=1):
         z_sample = 0
 
-        if self.params['prior'] == 'sg':
+        if self.config['prior'] == 'sg':
             z_sample = tf.random.normal([n, self.latent_dim])
-        elif self.params['prior'] == 'vampprior':
+        elif self.config['prior'] == 'vampprior':
             n_pseudo_inputs = self.means(self.idle_input)[0:n]
             sample_mean = self.latent_mean(n_pseudo_inputs)
             sample_logvar = self.latent_logvar(n_pseudo_inputs)
@@ -132,8 +132,13 @@ def compute_loss(model, x):
     mean, logvar = model.encode(x)
     z = model.reparametrize(mean, logvar)
     x_logit = model.decode(z)
+
+    # for example, returns [1, 2, 3] for dataset of 4 dimensional elements
+    reduce_dims = tf.range(1, tf.rank(x))
     cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_logit, labels=x)
-    logpx_z = -tf.reduce_sum(cross_ent, axis=[1, 2, 3])
+
+    logpx_z = -tf.reduce_sum(cross_ent, axis=reduce_dims)
     logz = model.prior(z)  # logz = log_normal_pdf(z, 0., 0.)
     logqz_x = log_normal_pdf(z, mean, logvar)
+
     return -tf.reduce_mean(logpx_z + logz - logqz_x)

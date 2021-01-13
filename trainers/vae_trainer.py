@@ -28,7 +28,7 @@ class VAETrainer:
         train_elbo = -train_loss.result()
         summaries_dict['train_elbo'] = train_elbo
 
-        if (epoch - 1) % self.config["logging_interval"] == 0:
+        if (epoch - 1) % self.config["logging-interval"] == 0:
             valid_loss = tf.keras.metrics.Mean()
             for test_x in self.valid_dataset:
                 valid_loss(self.train_step(test_x, training=False))
