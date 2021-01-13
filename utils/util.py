@@ -1,7 +1,49 @@
+import numpy as np
+import pathlib
 import tensorflow as tf
+from datetime import datetime
+
+project_path = pathlib.Path(__file__).parent.parent
 
 
 def reparameterize(inputs):
     mean, logvar = inputs
     eps = tf.keras.backend.random_normal(shape=tf.shape(mean))
     return mean + tf.exp(0.5 * logvar) * eps
+
+
+def get_str_formatted_time() -> str:
+    return datetime.now().strftime('%Y-%m-%d--%H.%M.%S')
+
+
+def ensure_dir(dirname):
+    dirname = pathlib.Path(dirname)
+    if not dirname.is_dir():
+        dirname.mkdir(parents=True, exist_ok=False)
+
+
+def ensure_dirs(dirs):
+    for dir_ in dirs:
+        ensure_dir(dir_)
+
+
+def log_normal_pdf(sample, mean, logvar, raxis=1):
+    log2pi = tf.math.log(2. * np.pi)
+    return tf.reduce_sum(-.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi), axis=raxis)
+
+
+def load_mnist(batch_size):
+    def preprocess_images(images):
+        images = images.reshape((images.shape[0], 28, 28, 1)) / 255.
+        return np.where(images > .5, 1., 0.).astype("float32")
+
+    # TODO make a valid_dataset not a test_dataset
+
+    (train_images, _), (test_images, _) = tf.keras.datasets.mnist.load_data()
+    train_images = preprocess_images(train_images)
+    test_images = preprocess_images(test_images)
+
+    train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(len(train_images)).batch(batch_size)
+    test_dataset = tf.data.Dataset.from_tensor_slices(test_images).shuffle(len(test_images)).batch(batch_size)
+
+    return train_dataset, test_dataset

@@ -1,12 +1,21 @@
-import numpy as np
 import tensorflow as tf
 
 from utils.GatedDenseLayer import GatedDenseLayer
 from utils.Hardtanh import Hardtanh
+from utils.util import log_normal_pdf
 
 
-class CVAE(tf.keras.Model):
-    """Convolutional variational autoencoder."""
+class CVAE_SG(tf.keras.Model):
+    """
+    Convolutional variational autoencoder with standard gaussian prior.
+
+    Uses a simple convolution layers structure (conv+relu+conv+relu+flatten+dense) for encoder
+    and a symmetric deconvolution structure for the decoder.
+
+    p(z) is the prior.
+    p(x given z) is modeled by a bernoulli distribution.
+    q(z given x) is modeled by a log-normal distribution.
+    """
 
     def __init__(self, parameters):
         super().__init__(parameters)
@@ -58,8 +67,22 @@ class CVAE(tf.keras.Model):
             return probs
         return logits
 
+    def generate_x(self, n=1):
+        # TODO
+        pass
 
-class VAE(tf.keras.Model):
+
+class VAE_SG(tf.keras.Model):
+    """
+    Variational autoencoder with standard gaussian prior.
+
+    Uses gated dense layers for both encoder and decoder.
+
+    p(z) is the prior.
+    p(x given z) is modeled by a bernoulli distribution.
+    q(z given x) is modeled by a log-normal distribution.
+    """
+
     def __init__(self, parameters):
         super().__init__(parameters)
 
@@ -112,13 +135,18 @@ class VAE(tf.keras.Model):
             return probs
         return logits
 
-
-def log_normal_pdf(sample, mean, logvar, raxis=1):
-    log2pi = tf.math.log(2. * np.pi)
-    return tf.reduce_sum(-.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi), axis=raxis)
+    def generate_x(self, n=1):
+        # TODO
+        pass
 
 
 def compute_loss(model, x):
+    """
+    For computing losses of both VAE_SG and CVAE_SG
+    :param model:
+    :param x: current batch
+    :return: the loss
+    """
     mean, logvar = model.encode(x)
     z = model.reparametrize(mean, logvar)
     x_logit = model.decode(z)
