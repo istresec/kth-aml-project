@@ -24,6 +24,7 @@ if __name__ == '__main__':
     params['input-size'] = 784  # depends on the dataset, 784 for MNIST
     params['latent-units'] = 40  # suggested: 40
     params['learning-rate'] = 1e-4
+    params['binary'] = True
 
     # experiments
     test_vae(params)
