@@ -13,7 +13,7 @@ if __name__ == '__main__':
     config['latent-dim'] = 40
     config['epochs'] = 100
     config['batch-size'] = 128
-    config['logging_interval'] = 1
+    config['logging-interval'] = 1
     config["seed"] = 72
     config['prior'] = 'vampprior'  # or sg
     config['vamp-components'] = 500
@@ -30,6 +30,7 @@ if __name__ == '__main__':
     # train_dataset, valid_dataset = load_mnist(config["batch_size"])
     train_dataset, valid_dataset, test_dataset = loaders["mnist"](config)
     config['input-shape'] = tuple(train_dataset.element_spec.shape)[1:]
+    print("Dataset loaded.")
 
     optimizer = tf.keras.optimizers.Adam(1e-4)
     model = VAE(config)
