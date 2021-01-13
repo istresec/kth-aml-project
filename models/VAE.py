@@ -107,8 +107,19 @@ class VAE(tf.keras.Model):
         return logits
 
     def generate_x(self, n=1):
-        # TODO
-        pass
+        z_sample = 0
+
+        if self.params['prior'] == 'sg':
+            z_sample = tf.random.normal([n, self.latent_dim])
+        elif self.params['prior'] == 'vampprior':
+            n_pseudo_inputs = self.means(self.idle_input)[0:n]
+            sample_mean = self.latent_mean(n_pseudo_inputs)
+            sample_logvar = self.latent_logvar(n_pseudo_inputs)
+            z_sample = self.reparametrize(sample_mean, sample_logvar)
+
+        samples_rand = self.decoder_mean(self.decoder(z_sample))
+
+        return samples_rand
 
 
 def compute_loss(model, x):
