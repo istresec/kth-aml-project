@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from functools import reduce
 
@@ -41,6 +42,7 @@ class VAE(tf.keras.Model):
             tf.keras.layers.Dense(self.latent_dim, activation=Hardtanh(-6., 2.))
         ])
 
+        # TODO consider using Gaussian distribution for p(x|z) instaed of Bernoulli. Gauss is in the original work
         self.decoder = tf.keras.Sequential([
             tf.keras.Input(shape=(self.latent_dim,)),
             GatedDenseLayer(self.hidden_dim),
@@ -106,18 +108,21 @@ class VAE(tf.keras.Model):
             return probs
         return logits
 
-    def generate_x(self, n=1):
-        z_sample = 0
+    def generate_x(self, n=1, test_sample=None):
+        z_sample = None
 
         if self.config['prior'] == 'sg':
-            z_sample = tf.random.normal([n, self.latent_dim])
+            if test_sample is not None:
+                z_sample = tf.random.normal([n, self.latent_dim])
+            else:
+                z_sample = self.reparametrize(*self.encode(test_sample))
         elif self.config['prior'] == 'vampprior':
             n_pseudo_inputs = self.means(self.idle_input)[0:n]
             sample_mean = self.latent_mean(n_pseudo_inputs)
             sample_logvar = self.latent_logvar(n_pseudo_inputs)
             z_sample = self.reparametrize(sample_mean, sample_logvar)
 
-        samples_rand = self.decoder_mean(self.decoder(z_sample))
+        samples_rand = self.decoder(z_sample)
 
         return samples_rand
 
@@ -142,3 +147,16 @@ def compute_loss(model, x):
     logqz_x = log_normal_pdf(z, mean, logvar)
 
     return -tf.reduce_mean(logpx_z + logz - logqz_x)
+
+
+def generate_4x4_images_grid(model, epoch, image_shape, test_sample):
+    predictions = model.generate_x(16, test_sample)
+    predictions = tf.reshape(predictions, (-1, *image_shape))
+
+    plt.figure(figsize=(6, 6))
+    plt.title(f"epoch:{epoch}")
+    for i in range(predictions.shape[0]):
+        plt.subplot(4, 4, i + 1)
+        plt.imshow(predictions[i], cmap="gray")
+        plt.axis("off")
+
