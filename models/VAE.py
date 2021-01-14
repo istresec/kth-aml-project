@@ -56,7 +56,8 @@ class VAE(tf.keras.Model):
 
             self.means = tf.keras.Sequential([
                 tf.keras.Input(shape=(self.components,)),
-                tf.keras.layers.Dense(self.hidden_dim, activation=Hardtanh(0., 1.))
+                tf.keras.layers.Dense(input_element_length, activation=Hardtanh(0., 1.)),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
             ])
 
             self.idle_input = tf.Variable(tf.eye(self.components, self.components, dtype=tf.float32))
@@ -76,9 +77,7 @@ class VAE(tf.keras.Model):
         elif self.config['prior'] == 'vampprior':
             c = tf.cast(self.components, tf.float32)
             pseudo_inputs = self.means(self.idle_input)
-
-            mean = self.latent_mean(pseudo_inputs)
-            logvar = self.latent_logvar(pseudo_inputs)
+            mean, logvar = self.encode(pseudo_inputs)
 
             z = tf.expand_dims(z, 1)
             mean = tf.expand_dims(mean, 0)
@@ -118,8 +117,7 @@ class VAE(tf.keras.Model):
                 z_sample = self.reparametrize(*self.encode(test_sample))
         elif self.config['prior'] == 'vampprior':
             n_pseudo_inputs = self.means(self.idle_input)[0:n]
-            sample_mean = self.latent_mean(n_pseudo_inputs)
-            sample_logvar = self.latent_logvar(n_pseudo_inputs)
+            sample_mean, sample_logvar = self.encode(n_pseudo_inputs)
             z_sample = self.reparametrize(sample_mean, sample_logvar)
 
         samples_rand = self.decoder(z_sample)
@@ -159,4 +157,3 @@ def generate_4x4_images_grid(model, epoch, image_shape, test_sample):
         plt.subplot(4, 4, i + 1)
         plt.imshow(predictions[i], cmap="gray")
         plt.axis("off")
-
