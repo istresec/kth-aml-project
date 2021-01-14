@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import tensorflow as tf
 from functools import reduce
 
@@ -99,11 +98,25 @@ class HVAE(tf.keras.Model):
             GatedDenseLayer(self.hidden_dim)
         ])
 
-        self.p_x_mean = tf.keras.Sequential([
-            tf.keras.Input(shape=(self.hidden_dim,)),
-            tf.keras.layers.Dense(input_element_length),
-            tf.keras.layers.Reshape(target_shape=self.input_shape_)
-        ])
+        if config["x-variable-type"] == "binary":
+            self.p_x_mean = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+        elif config["x-variable-type"] == "continuous":
+            self.p_x_mean = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+            self.p_x_logvar = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length, activation=Hardtanh(-6., 2.)),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+        else:
+            raise Exception(f"Invalid value given for 'x-variable-type': value was '{config['x-variable-type']}'")
 
         if self.config['prior'] == 'vampprior':
             self.components = self.config['vamp-components']
@@ -115,12 +128,6 @@ class HVAE(tf.keras.Model):
             ])
 
             self.idle_input = tf.Variable(tf.eye(self.components, self.components, dtype=tf.float32))
-
-    @tf.function
-    def sample(self, eps=None):
-        if eps is None:
-            eps = tf.random.normal(shape=(100, self.latent_dim))
-        return self.decode(eps, apply_sigmoid=True)
 
     def prior(self, z2):
         if self.config['prior'] == 'sg':
@@ -164,11 +171,9 @@ class HVAE(tf.keras.Model):
         z1_mean, z1_logvar = self.decode_z1(z2)
 
         # x_mean = p(x | z1, z2)
-        logits = self.decode_x(z1, z2)
-        if apply_sigmoid:
-            probs = tf.sigmoid(logits)
-            return probs, z1_mean, z1_logvar
-        return logits, z1_mean, z1_logvar
+        x_mean, x_logvar = self.decode_x(z1, z2, apply_sigmoid)
+
+        return x_mean, x_logvar, z1_mean, z1_logvar
 
     def encode_z2(self, x):
         z2_dist_encode = self.q_z2(x)
@@ -191,12 +196,22 @@ class HVAE(tf.keras.Model):
         z1_logvar = self.p_z1_logvar(z1)
         return z1_mean, z1_logvar
 
-    def decode_x(self, z1, z2):
+    def decode_x(self, z1, z2, apply_sigmoid=False):
         z1 = self.p_x_z1(z1)
         z2 = self.p_x_z2(z2)
         joint_input = tf.concat((z1, z2), 1)
-        x = self.p_x_mean(self.p_x_joint(joint_input))
-        return x
+        hidden = self.p_x_joint(joint_input)
+
+        if self.config["x-variable-type"] == "binary":
+            logits = self.p_x_mean(hidden)
+            if apply_sigmoid:
+                probs = tf.sigmoid(logits)
+                return probs, None
+            return logits, None
+        elif self.config["x-variable-type"] == "continuous":
+            x_mean = self.p_x_mean(hidden)
+            x_logvar = self.p_x_logvar(hidden)
+            return x_mean, x_logvar
 
     def generate_x(self, n=1, test_sample=None):
         if self.config['prior'] == 'sg':
@@ -213,9 +228,9 @@ class HVAE(tf.keras.Model):
         z1_sample_mean, z1_sample_logvar = self.decode_z1(z2_sample)
         z1_sample = self.reparametrize(z1_sample_mean, z1_sample_logvar)
 
-        samples_rand = self.decode_x(z1_sample, z2_sample)
+        x_mean, _ = self.decode_x(z1_sample, z2_sample, apply_sigmoid=True)
 
-        return samples_rand
+        return x_mean
 
 
 def compute_loss(model, x):
@@ -229,13 +244,15 @@ def compute_loss(model, x):
     z2_q, z2_q_mean, z2_q_logvar, z1_q, z1_q_mean, z1_q_logvar = model.encode(x)
 
     # decode
-    x_logit, z1_p_mean, z1_p_logvar = model.decode(z1_q, z2_q)
+    x_mean, x_logvar, z1_p_mean, z1_p_logvar = model.decode(z1_q, z2_q)
 
     # RE
-    # for example, returns [1, 2, 3] for dataset of 4 dimensional elements
-    reduce_dims = tf.range(1, tf.rank(x))
-    cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_logit, labels=x)
-    log_p_x_z = -tf.reduce_sum(cross_ent, axis=reduce_dims)
+    if model.config["x-variable-type"] == "binary":
+        reduce_dims = tf.range(1, tf.rank(x))  # for example, returns [1, 2, 3] for dataset of 4 dimensional elements
+        cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_mean, labels=x)
+        log_p_x_z = -tf.reduce_sum(cross_ent, axis=reduce_dims)
+    elif model.config["x-variable-type"] == "continuous":
+        raise Exception("not implemented") # TODO
 
     # KL
     log_p_z1 = log_normal_pdf(z1_q, z1_p_mean, z1_p_logvar)

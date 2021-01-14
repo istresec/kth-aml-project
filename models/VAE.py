@@ -41,14 +41,30 @@ class VAE(tf.keras.Model):
             tf.keras.layers.Dense(self.latent_dim, activation=Hardtanh(-6., 2.))
         ])
 
-        # TODO consider using Gaussian distribution for p(x|z) instaed of Bernoulli. Gauss is in the original work
         self.decoder = tf.keras.Sequential([
             tf.keras.Input(shape=(self.latent_dim,)),
             GatedDenseLayer(self.hidden_dim),
             GatedDenseLayer(self.hidden_dim),
-            tf.keras.layers.Dense(input_element_length),
-            tf.keras.layers.Reshape(target_shape=self.input_shape_)
         ])
+        if config["x-variable-type"] == "binary":
+            self.p_x_mean = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+        elif config["x-variable-type"] == "continuous":
+            self.p_x_mean = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+            self.p_x_logvar = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length, activation=Hardtanh(-6., 2.)),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+        else:
+            raise Exception(f"Invalid value given for 'x-variable-type': value was '{config['x-variable-type']}'")
 
         if self.config['prior'] == 'vampprior':
             self.components = self.config['vamp-components']
@@ -60,12 +76,6 @@ class VAE(tf.keras.Model):
             ])
 
             self.idle_input = tf.Variable(tf.eye(self.components, self.components, dtype=tf.float32))
-
-    @tf.function
-    def sample(self, eps=None):
-        if eps is None:
-            eps = tf.random.normal(shape=(100, self.latent_dim))
-        return self.decode(eps, apply_sigmoid=True)
 
     def prior(self, z):
         if self.config['prior'] == 'sg':
@@ -100,11 +110,17 @@ class VAE(tf.keras.Model):
         return eps * tf.exp(logvar * .5) + mean
 
     def decode(self, z, apply_sigmoid=False):
-        logits = self.decoder(z)
-        if apply_sigmoid:
-            probs = tf.sigmoid(logits)
-            return probs
-        return logits
+        hidden = self.decoder(z)
+        if self.config["x-variable-type"] == "binary":
+            logits = self.p_x_mean(hidden)
+            if apply_sigmoid:
+                probs = tf.sigmoid(logits)
+                return probs, None
+            return logits, None
+        elif self.config["x-variable-type"] == "continuous":
+            x_mean = self.p_x_mean(hidden)
+            x_logvar = self.p_x_logvar(hidden)
+            return x_mean, x_logvar
 
     def generate_x(self, n=1, test_sample=None):
         if self.config['prior'] == 'sg':
@@ -118,9 +134,9 @@ class VAE(tf.keras.Model):
             sample_mean, sample_logvar = self.encode(n_pseudo_inputs)
             z_sample = self.reparametrize(sample_mean, sample_logvar)
 
-        samples_rand = self.decoder(z_sample)
+        samples_mean, _ = self.decode(z_sample, apply_sigmoid=True)
 
-        return samples_rand
+        return samples_mean
 
 
 def compute_loss(model, x):
@@ -132,11 +148,13 @@ def compute_loss(model, x):
     """
     mean, logvar = model.encode(x)
     z = model.reparametrize(mean, logvar)
-    x_logit = model.decode(z)
+    x_mean, x_logvar = model.decode(z)
 
-    # for example, returns [1, 2, 3] for dataset of 4 dimensional elements
-    reduce_dims = tf.range(1, tf.rank(x))
-    cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_logit, labels=x)
+    if model.config["x-variable-type"] == "binary":
+        reduce_dims = tf.range(1, tf.rank(x))  # for example, returns [1, 2, 3] for dataset of 4 dimensional elements
+        cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_mean, labels=x)
+    elif model.config["x-variable-type"] == "continuous":
+        raise Exception("not impl")  # TODO
 
     logpx_z = -tf.reduce_sum(cross_ent, axis=reduce_dims)
     logz = model.prior(z)  # logz = log_normal_pdf(z, 0., 0.)
