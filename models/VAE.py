@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import tensorflow as tf
 from functools import reduce
 
@@ -108,13 +107,12 @@ class VAE(tf.keras.Model):
         return logits
 
     def generate_x(self, n=1, test_sample=None):
-        z_sample = None
-
         if self.config['prior'] == 'sg':
             if test_sample is not None:
                 z_sample = tf.random.normal([n, self.latent_dim])
             else:
                 z_sample = self.reparametrize(*self.encode(test_sample))
+
         elif self.config['prior'] == 'vampprior':
             n_pseudo_inputs = self.means(self.idle_input)[0:n]
             sample_mean, sample_logvar = self.encode(n_pseudo_inputs)
@@ -127,10 +125,10 @@ class VAE(tf.keras.Model):
 
 def compute_loss(model, x):
     """
-    For computing losses of both VAE_SG and CVAE_SG
-    :param model:
-    :param x: current batch
-    :return: the loss
+    For computing loss of the VAE or CVAE model.
+    :param model: VAE or CVAE model.
+    :param x: Current batch of data.
+    :return: The loss.
     """
     mean, logvar = model.encode(x)
     z = model.reparametrize(mean, logvar)
@@ -145,15 +143,3 @@ def compute_loss(model, x):
     logqz_x = log_normal_pdf(z, mean, logvar)
 
     return -tf.reduce_mean(logpx_z + logz - logqz_x)
-
-
-def generate_4x4_images_grid(model, epoch, image_shape, test_sample):
-    predictions = model.generate_x(16, test_sample)
-    predictions = tf.reshape(predictions, (-1, *image_shape))
-
-    plt.figure(figsize=(6, 6))
-    plt.title(f"epoch:{epoch}")
-    for i in range(predictions.shape[0]):
-        plt.subplot(4, 4, i + 1)
-        plt.imshow(predictions[i], cmap="gray")
-        plt.axis("off")

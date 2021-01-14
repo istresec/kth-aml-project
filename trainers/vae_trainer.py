@@ -1,10 +1,11 @@
 import io
-import matplotlib.pyplot as plt
 import os
 import tensorflow as tf
 import time
 
-from models.VAE import generate_4x4_images_grid
+from matplotlib import pyplot as plt
+
+from utils.util import generate_4x4_images_grid
 
 
 class VAETrainer:

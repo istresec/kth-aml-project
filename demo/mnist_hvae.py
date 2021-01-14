@@ -2,14 +2,15 @@ import numpy as np
 import os
 import tensorflow as tf
 
-from models.VAE import compute_loss, VAE
+from models.HVAE import compute_loss, HVAE
 from trainers.vae_trainer import VAETrainer
 from utils.util import project_path, ensure_dirs, get_str_formatted_time, load_mnist
 
 if __name__ == '__main__':
     config = dict()
     config['hidden-dim'] = 300
-    config['latent-dim'] = 40
+    config['z1-dim'] = 40
+    config['z2-dim'] = 40
     config['epochs'] = 300
     config['batch-size'] = 128
     config['logging-interval'] = 1
@@ -17,7 +18,7 @@ if __name__ == '__main__':
     config['prior'] = 'vampprior'  # {'vampprior', 'sg'}
     config['vamp-components'] = 500
 
-    run_name = f"VAE_prior-{config['prior']}_lat-{config['latent-dim']}_bs-{config['batch-size']}_____{get_str_formatted_time()}"
+    run_name = f"HVAE_prior-{config['prior']}_z1-{config['z1-dim']}_z2-{config['z2-dim']}_bs-{config['batch-size']}_____{get_str_formatted_time()}"
     config['run-name'] = run_name
     config['summary-dir'] = os.path.join(project_path, f"tb/{run_name}")
     config['images-dir'] = os.path.join(project_path, f"images/{run_name}")
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     print(f"Config:{config}")
 
     optimizer = tf.keras.optimizers.Adam(1e-4)
-    model = VAE(config)
+    model = HVAE(config)
     loss_function = compute_loss
     writer = tf.summary.create_file_writer(config["summary-dir"])
 
