@@ -49,11 +49,18 @@ class VAETrainer:
     def train_epoch(self, epoch):
         print(f"Epoch {epoch} started.")
         summaries_dict = dict()
+        beta = 1.
+        if self.config['warmup'] == 0:
+            beta = 1.
+        else:
+            beta = 1.* epoch / self.config['warmup']
+            if beta > 1.:
+                beta = 1.
 
         start_time = time.time()
         train_loss = tf.keras.metrics.Mean()
         for train_x in tqdm(self.train_dataset):
-            loss = self.train_step(train_x)
+            loss = self.train_step(train_x, beta)
             train_loss(loss)
         end_time = time.time()
 
@@ -79,9 +86,9 @@ class VAETrainer:
         print(f"Epoch: {epoch}, time elapsed: {end_time - start_time}, summaries: {summaries_dict}")
 
     @tf.function
-    def train_step(self, x):
+    def train_step(self, x, beta=1.):
         with tf.GradientTape() as tape:
-            loss, _ = self.loss_function(self.model, x)
+            loss, _ = self.loss_function(self.model, x, beta)
         gradients = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
         return loss

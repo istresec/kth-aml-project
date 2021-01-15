@@ -131,7 +131,7 @@ class VAE(tf.keras.Model):
 
 
 @tf.function
-def compute_loss(model, x):
+def compute_loss(model, x, beta=1.):
     """
     For computing loss of the VAE or CVAE model.
     :param model: VAE or CVAE model.
@@ -152,6 +152,6 @@ def compute_loss(model, x):
     logz = model.prior(z)  # logz = log_normal_pdf(z, 0., 0.)
     logqz_x = log_normal_pdf(z, mean, logvar)
 
-    losses = - (logpx_z + logz - logqz_x)
+    losses = - (logpx_z + beta*(logz - logqz_x))
 
     return tf.reduce_mean(losses), losses
