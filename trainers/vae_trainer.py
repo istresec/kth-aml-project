@@ -6,7 +6,7 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from utils.util import generate_4x4_images_grid
+from utils.util import generate_images_grid
 
 
 class VAETrainer:
@@ -21,20 +21,22 @@ class VAETrainer:
         self.config = config
 
         self.writer = writer
-        assert config["batch-size"] >= 16
+        assert config["batch-size"] >= config["log-images-grid-size"] ** 2
         for batch in valid_dataset.take(1):
-            self.log_test_sample = batch[0:16]
+            self.log_test_sample = batch[0:config["log-images-grid-size"] ** 2]
 
     def train(self):
         print("Training started")
         self.log_config()
-        self.log_images(epoch=0)
+        self.log_images(epoch=0, sample=self.log_test_sample, plot_predictions=True)
+        self.log_images(epoch=0, sample=self.log_test_sample)
         for epoch in range(1, self.config["epochs"] + 1):
             self.train_epoch(epoch)
 
         print("Computing loglikelihood")
-        valid_ll = tf.keras.metrics.Mean()
-        val_dataset_for_ll = self.valid_dataset._input_dataset.batch(self.config["ll-batch-size"])  # TODO this is a hack
+        valid_ll = tf.keras.metrics.Sum()
+        val_dataset_for_ll = self.valid_dataset._input_dataset.batch(
+            self.config["ll-batch-size"])  # TODO this is a hack
         for test_x in tqdm(val_dataset_for_ll):
             ll = self.loglikelihood_function(self.model, self.loss_function, test_x)
             valid_ll(ll)
@@ -67,7 +69,7 @@ class VAETrainer:
             valid_elbo = -valid_loss.result()
             summaries_dict['valid_elbo'] = valid_elbo
 
-            self.log_images(epoch)
+            self.log_images(epoch, self.log_test_sample)
             with self.writer.as_default():
                 for k, v in summaries_dict.items():
                     tf.summary.scalar(name=k, data=v, step=epoch)
@@ -89,10 +91,14 @@ class VAETrainer:
             with open(os.path.join(self.config["images-dir"], "config.txt"), "w") as f:
                 f.write(f"{self.config}\n")
 
-    def log_images(self, epoch):
+    def log_images(self, epoch, sample, plot_predictions=False):
         with self.writer.as_default():
-            # TODO hardcoded 28x28. Maybe move to config
-            generate_4x4_images_grid(self.model, epoch, (28, 28), self.log_test_sample)
+            generate_images_grid(
+                self.model, epoch,
+                self.config["log-images-grid-size"],
+                self.config["log-images-shape"],
+                sample, plot_predictions
+            )
 
             # 1. save png to images-dir
             plt.savefig(os.path.join(self.config['images-dir'], f"epoch={epoch:05d}"), format="png")
@@ -103,4 +109,4 @@ class VAETrainer:
             plt.close()
             buf.seek(0)
             tf_image = tf.expand_dims(tf.image.decode_png(buf.getvalue(), channels=4), 0)
-            tf.summary.image("Training data", tf_image, step=epoch)
+            tf.summary.image(f"{'Predictions' if plot_predictions else 'Real images'}", tf_image, step=epoch)

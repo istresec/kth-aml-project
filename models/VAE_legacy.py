@@ -1,13 +1,14 @@
-import tensorflow_probability as tfp
-import matplotlib.pyplot as plt
-import numpy as np
-from tensorflow.keras.layers import *
 import time
 
-from utils.distributions import *
-from utils.Hardtanh import Hardtanh
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow_probability as tfp
+from tensorflow.keras.layers import *
+
 from models.BaseModel import BaseModel
 from utils.GatedDenseLayer import GatedDenseLayer
+from utils.Hardtanh import Hardtanh
+from utils.distributions import *
 from utils.util import reparameterize
 
 
