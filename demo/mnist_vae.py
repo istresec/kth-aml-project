@@ -14,6 +14,7 @@ if __name__ == '__main__':
     config['latent-dim'] = 40
     config['epochs'] = 300
     config['batch-size'] = 128
+    config["ll-batch-size"] = 512
     config['logging-interval'] = 1
     config["seed"] = 72
     config['prior'] = 'vampprior'  # {'vampprior', 'sg'}
