@@ -16,6 +16,7 @@ if __name__ == '__main__':
     config['epochs'] = 300
     config['batch-size'] = 128
     config["ll-batch-size"] = 512
+    config["ll-n-samples"] = 5000
     config['logging-interval'] = 1
     config["log-images-grid-size"] = 5
     config["seed"] = 72
