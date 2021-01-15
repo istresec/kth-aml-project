@@ -53,7 +53,7 @@ def load_mnist(batch_size):
 
 def generate_images_grid(model, epoch, grid_size, image_shape, test_sample, plot_predictions=True):
     if plot_predictions:
-        predictions = model.generate_x(grid_size ** 2, test_sample)
+        predictions = model.generate_x(test_sample, grid_size ** 2)
         images = tf.reshape(predictions, (-1, *image_shape))
     else:
         images = tf.reshape(test_sample, (-1, *image_shape))

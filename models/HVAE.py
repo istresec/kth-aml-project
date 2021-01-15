@@ -1,5 +1,6 @@
-import tensorflow as tf
 from functools import reduce
+
+import tensorflow as tf
 
 from utils.GatedDenseLayer import GatedDenseLayer
 from utils.Hardtanh import Hardtanh
@@ -213,23 +214,9 @@ class HVAE(tf.keras.Model):
             x_logvar = self.p_x_logvar(hidden)
             return x_mean, x_logvar
 
-    def generate_x(self, n=1, test_sample=None):
-        if self.config['prior'] == 'sg':
-            if test_sample is not None:
-                z2_sample = tf.random.normal([n, self.z2_dim])
-            else:
-                z2_sample = self.reparametrize(*self.encode(test_sample))
-
-        elif self.config['prior'] == 'vampprior':
-            n_pseudo_inputs = self.means(self.idle_input)[0:n]
-            z2_sample_mean, z2_sample_logvar = self.encode_z2(n_pseudo_inputs)
-            z2_sample = self.reparametrize(z2_sample_mean, z2_sample_logvar)
-
-        z1_sample_mean, z1_sample_logvar = self.decode_z1(z2_sample)
-        z1_sample = self.reparametrize(z1_sample_mean, z1_sample_logvar)
-
-        x_mean, _ = self.decode_x(z1_sample, z2_sample, apply_sigmoid=True)
-
+    def generate_x(self, test_sample, n=1):
+        z2_q, z2_q_mean, z2_q_logvar, z1_q, z1_q_mean, z1_q_logvar = self.encode(test_sample)
+        x_mean, _, _, _ = self.decode(z1_q, z2_q, apply_sigmoid=True)
         return x_mean
 
 
@@ -253,7 +240,7 @@ def compute_loss(model, x):
         cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_mean, labels=x)
         log_p_x_z = -tf.reduce_sum(cross_ent, axis=reduce_dims)
     elif model.config["x-variable-type"] == "continuous":
-        raise Exception("not implemented") # TODO
+        raise Exception("not implemented")  # TODO
 
     # KL
     log_p_z1 = log_normal_pdf(z1_q, z1_p_mean, z1_p_logvar)

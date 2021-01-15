@@ -28,7 +28,7 @@ class VAETrainer:
     def train(self):
         print("Training started")
         self.log_config()
-        self.log_images(epoch=0, sample=self.log_test_sample, plot_predictions=True)
+        self.log_images(epoch=0, sample=self.log_test_sample, plot_predictions=False)
         self.log_images(epoch=0, sample=self.log_test_sample)
         for epoch in range(1, self.config["epochs"] + 1):
             self.train_epoch(epoch)
@@ -38,7 +38,7 @@ class VAETrainer:
         val_dataset_for_ll = self.valid_dataset._input_dataset.batch(
             self.config["ll-batch-size"])  # TODO this is a hack
         for test_x in tqdm(val_dataset_for_ll):
-            ll = self.loglikelihood_function(self.model, self.loss_function, test_x)
+            ll = self.loglikelihood_function(self.model, self.loss_function, test_x, self.config["ll-n-samples"])
             valid_ll(ll)
         valid_ll = valid_ll.result()
 
@@ -91,7 +91,7 @@ class VAETrainer:
             with open(os.path.join(self.config["images-dir"], "config.txt"), "w") as f:
                 f.write(f"{self.config}\n")
 
-    def log_images(self, epoch, sample, plot_predictions=False):
+    def log_images(self, epoch, sample, plot_predictions=True):
         with self.writer.as_default():
             generate_images_grid(
                 self.model, epoch,

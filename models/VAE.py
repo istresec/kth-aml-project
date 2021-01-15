@@ -123,20 +123,10 @@ class VAE(tf.keras.Model):
             x_logvar = self.p_x_logvar(hidden)
             return x_mean, x_logvar
 
-    def generate_x(self, n=1, test_sample=None):
-        if self.config['prior'] == 'sg':
-            if test_sample is not None:
-                z_sample = tf.random.normal([n, self.latent_dim])
-            else:
-                z_sample = self.reparametrize(*self.encode(test_sample))
-
-        elif self.config['prior'] == 'vampprior':
-            n_pseudo_inputs = self.means(self.idle_input)[0:n]
-            sample_mean, sample_logvar = self.encode(n_pseudo_inputs)
-            z_sample = self.reparametrize(sample_mean, sample_logvar)
-
-        samples_mean, _ = self.decode(z_sample, apply_sigmoid=True)
-
+    def generate_x(self, test_sample, n=1):
+        mean, logvar = self.encode(test_sample)
+        z = self.reparametrize(mean, logvar)
+        samples_mean, _ = self.decode(z, apply_sigmoid=True)
         return samples_mean
 
 
