@@ -41,6 +41,7 @@ class VAETrainer:
 
         with self.writer.as_default():
             tf.summary.scalar(name="valid_ll", data=valid_ll, step=epoch)
+        print(f"Likelihood is: {valid_ll}")
 
     def train_epoch(self, epoch):
         print(f"Epoch {epoch} started.")
