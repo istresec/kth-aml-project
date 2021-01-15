@@ -1,20 +1,23 @@
 import io
 import os
-import tensorflow as tf
 import time
 
+import tensorflow as tf
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from utils.util import generate_4x4_images_grid
 
 
 class VAETrainer:
-    def __init__(self, optimizer, model, train_dataset, valid_dataset, loss_function, config, writer):
+    def __init__(self, optimizer, model, train_dataset, valid_dataset, loss_function, loglikelihood_function, config,
+                 writer):
         self.optimizer = optimizer
         self.model = model
         self.train_dataset = train_dataset
         self.valid_dataset = valid_dataset
         self.loss_function = loss_function
+        self.loglikelihood_function = loglikelihood_function
         self.config = config
 
         self.writer = writer
@@ -29,13 +32,25 @@ class VAETrainer:
         for epoch in range(1, self.config["epochs"] + 1):
             self.train_epoch(epoch)
 
+        print("Computing loglikelihood")
+        valid_ll = tf.keras.metrics.Mean()
+        for test_x in tqdm(self.valid_dataset):
+            ll = self.loglikelihood_function(self.model, test_x)
+            valid_ll(ll)
+        valid_ll = valid_ll.result()
+
+        with self.writer.as_default():
+            tf.summary.scalar(name="valid_ll", data=valid_ll, step=epoch)
+
     def train_epoch(self, epoch):
+        print(f"Epoch {epoch} started.")
         summaries_dict = dict()
 
         start_time = time.time()
         train_loss = tf.keras.metrics.Mean()
-        for train_x in self.train_dataset:
-            train_loss(self.train_step(train_x))
+        for train_x in tqdm(self.train_dataset):
+            loss = self.train_step(train_x)
+            train_loss(loss)
         end_time = time.time()
 
         train_elbo = -train_loss.result()
@@ -44,7 +59,8 @@ class VAETrainer:
         if (epoch - 1) % self.config["logging-interval"] == 0:
             valid_loss = tf.keras.metrics.Mean()
             for test_x in self.valid_dataset:
-                valid_loss(self.train_step(test_x, training=False))
+                loss, _ = self.loss_function(self.model, test_x)
+                valid_loss(loss)
 
             valid_elbo = -valid_loss.result()
             summaries_dict['valid_elbo'] = valid_elbo
@@ -57,15 +73,11 @@ class VAETrainer:
                     tf.summary.histogram(f'trainable_variables[{i}]', v, step=epoch)
 
         print(f"Epoch: {epoch}, time elapsed: {end_time - start_time}, summaries: {summaries_dict}")
-        # generate_and_save_images(model, epoch, test_sample)
 
     @tf.function
-    def train_step(self, x, training=True):
-        if not training:
-            return self.loss_function(self.model, x)
-
+    def train_step(self, x):
         with tf.GradientTape() as tape:
-            loss = self.loss_function(self.model, x)
+            loss, _ = self.loss_function(self.model, x)
         gradients = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
         return loss

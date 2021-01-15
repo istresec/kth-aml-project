@@ -1,10 +1,13 @@
-import numpy as np
 import os
+
+import numpy as np
 import tensorflow as tf
 
 from models.HVAE import compute_loss, HVAE
+from models.VAE import compute_loglikelihood
 from trainers.vae_trainer import VAETrainer
-from utils.util import project_path, ensure_dirs, get_str_formatted_time, load_mnist
+from utils.dataset_loading import loaders
+from utils.util import project_path, ensure_dirs, get_str_formatted_time
 
 if __name__ == '__main__':
     config = dict()
@@ -28,8 +31,8 @@ if __name__ == '__main__':
     np.random.seed(config["seed"])
     ensure_dirs([config["summary-dir"], config["checkpoint-dir"], config['images-dir']])
 
-    train_dataset, valid_dataset = load_mnist(config["batch-size"])
-    # train_dataset, valid_dataset, test_dataset = loaders["mnist"](config)
+    # train_dataset, valid_dataset = load_mnist(config["batch-size"])
+    train_dataset, valid_dataset, test_dataset = loaders["mnist"](config)
     config['input-shape'] = tuple(train_dataset.element_spec.shape)[1:]
     config["x-variable-type"] = "binary"  # TODO hardcoded
     print("Dataset loaded.")
@@ -38,7 +41,9 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam(1e-4)
     model = HVAE(config)
     loss_function = compute_loss
+    loglikelihood_function = compute_loglikelihood
     writer = tf.summary.create_file_writer(config["summary-dir"])
 
-    trainer = VAETrainer(optimizer, model, train_dataset, valid_dataset, loss_function, config, writer)
+    trainer = VAETrainer(optimizer, model, train_dataset, valid_dataset, loss_function, compute_loglikelihood, config,
+                         writer)
     trainer.train()
