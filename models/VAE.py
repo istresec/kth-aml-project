@@ -159,6 +159,7 @@ def compute_loglikelihood(model, x, n_samples=5000):
     return np.mean(lls)
 
 
+@tf.function
 def compute_loss(model, x):
     """
     For computing loss of the VAE or CVAE model.

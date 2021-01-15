@@ -233,6 +233,7 @@ class HVAE(tf.keras.Model):
         return x_mean
 
 
+@tf.function
 def compute_loss(model, x):
     """
     For computing loss of the HVAE model.
