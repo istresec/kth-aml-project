@@ -14,10 +14,11 @@ if __name__ == '__main__':
     config['hidden-dim'] = 300
     config['z1-dim'] = 40
     config['z2-dim'] = 40
-    config['epochs'] = 300
+    config['epochs'] = 1
     config['batch-size'] = 128
     config["ll-batch-size"] = 512
     config['logging-interval'] = 1
+    config["log-images-grid-size"] = 5
     config["seed"] = 72
     config['prior'] = 'vampprior'  # {'vampprior', 'sg'}
     config['vamp-components'] = 500
@@ -35,6 +36,7 @@ if __name__ == '__main__':
     # train_dataset, valid_dataset = load_mnist(config["batch-size"])
     train_dataset, valid_dataset, test_dataset = loaders["mnist"](config)
     config['input-shape'] = tuple(train_dataset.element_spec.shape)[1:]
+    config["log-images-shape"] = (28, 28)
     config["x-variable-type"] = "binary"  # TODO hardcoded
     print("Dataset loaded.")
     print(f"Config:{config}")

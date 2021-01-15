@@ -1,8 +1,8 @@
-import numpy as np
 import pathlib
-import tensorflow as tf
 from datetime import datetime
 
+import numpy as np
+import tensorflow as tf
 from matplotlib import pyplot as plt
 
 project_path = pathlib.Path(__file__).parent.parent
@@ -51,13 +51,16 @@ def load_mnist(batch_size):
     return train_dataset, test_dataset
 
 
-def generate_4x4_images_grid(model, epoch, image_shape, test_sample):
-    predictions = model.generate_x(16, test_sample)
-    predictions = tf.reshape(predictions, (-1, *image_shape))
+def generate_images_grid(model, epoch, grid_size, image_shape, test_sample, plot_predictions=True):
+    if plot_predictions:
+        predictions = model.generate_x(grid_size ** 2, test_sample)
+        images = tf.reshape(predictions, (-1, *image_shape))
+    else:
+        images = tf.reshape(test_sample, (-1, *image_shape))
 
-    plt.figure(figsize=(6, 6))
+    plt.figure(figsize=(grid_size, grid_size))
     plt.title(f"epoch:{epoch}")
-    for i in range(predictions.shape[0]):
-        plt.subplot(4, 4, i + 1)
-        plt.imshow(predictions[i], cmap="gray")
+    for i in range(images.shape[0]):
+        plt.subplot(grid_size, grid_size, i + 1)
+        plt.imshow(images[i], cmap="gray")
         plt.axis("off")
