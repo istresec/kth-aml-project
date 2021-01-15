@@ -261,4 +261,5 @@ def compute_loss(model, x):
     log_p_z2 = model.prior(z2_q)
     log_q_z2_x = log_normal_pdf(z2_q, z2_q_mean, z2_q_logvar)
 
-    return -tf.reduce_mean(log_p_x_z + log_p_z1 + log_p_z2 - log_q_z1_x - log_q_z2_x)
+    losses = - (log_p_x_z + log_p_z1 + log_p_z2 - log_q_z1_x - log_q_z2_x)
+    return tf.reduce_mean(losses), losses
