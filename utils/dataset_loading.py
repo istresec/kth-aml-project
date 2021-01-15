@@ -143,6 +143,10 @@ def omniglot_load(params):
         x_val = np.random.binomial(1, x_val)
         x_test = np.random.binomial(1, x_test)
 
+    x_train = tf.cast(x_train, dtype=tf.float32)
+    x_val = tf.cast(x_val, dtype=tf.float32)
+    x_test = tf.cast(x_test, dtype=tf.float32)
+
     train_dataset = tf.data.Dataset.from_tensor_slices(x_train)
     train_dataset = train_dataset.shuffle(buffer_size=1024, seed=seed).batch(batch_size)
 
@@ -176,6 +180,10 @@ def caltech101_load(params):
         x_train = np.random.binomial(1, x_train)
         x_val = np.random.binomial(1, x_val)
         x_test = np.random.binomial(1, x_test)
+
+    x_train = tf.cast(x_train, dtype=tf.float32)
+    x_val = tf.cast(x_val, dtype=tf.float32)
+    x_test = tf.cast(x_test, dtype=tf.float32)
 
     train_dataset = tf.data.Dataset.from_tensor_slices(x_train)
     train_dataset = train_dataset.shuffle(buffer_size=1024, seed=seed).batch(batch_size)

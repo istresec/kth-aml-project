@@ -12,6 +12,7 @@ from utils.util import project_path, ensure_dirs, get_str_formatted_time
 if __name__ == '__main__':
     config = dict()
     config['dataset'] = 'mnist'  # {mnist, omniglot, caltech101}
+    config['binary'] = True
     config['hidden-dim'] = 300
     config['latent-dim'] = 40
     config['epochs'] = 300
@@ -21,7 +22,7 @@ if __name__ == '__main__':
     config['logging-interval'] = 1
     config["log-images-grid-size"] = 5
     config["seed"] = 72
-    config['prior'] = 'vampprior'  # {'vampprior', 'sg'}
+    config['prior'] = 'sg'  # {'vampprior', 'sg'}
     config['vamp-components'] = 500
 
     run_name = f"VAE_prior-{config['prior']}_dataset-{config['dataset']}_latent-{config['latent-dim']}_bs-{config['batch-size']}_____{get_str_formatted_time()}"

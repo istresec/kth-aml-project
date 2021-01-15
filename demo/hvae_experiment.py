@@ -12,6 +12,7 @@ from utils.util import project_path, ensure_dirs, get_str_formatted_time
 if __name__ == '__main__':
     config = dict()
     config['dataset'] = 'mnist'  # {mnist, omniglot, caltech101}
+    config['binary'] = True
     config['hidden-dim'] = 300
     config['z1-dim'] = 40
     config['z2-dim'] = 40
