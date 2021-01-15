@@ -3,7 +3,8 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from models.VAE import compute_loss, VAE, compute_loglikelihood
+from models.VAE import compute_loss, VAE
+from models.util import compute_loglikelihood
 from trainers.vae_trainer import VAETrainer
 from utils.dataset_loading import loaders
 from utils.util import project_path, ensure_dirs, get_str_formatted_time

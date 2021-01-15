@@ -36,7 +36,7 @@ class VAETrainer:
         valid_ll = tf.keras.metrics.Mean()
         val_dataset_for_ll = self.valid_dataset._input_dataset.batch(self.config["ll-batch-size"])  # TODO this is a hack
         for test_x in tqdm(val_dataset_for_ll):
-            ll = self.loglikelihood_function(self.model, test_x)
+            ll = self.loglikelihood_function(self.model, self.loss_function, test_x)
             valid_ll(ll)
         valid_ll = valid_ll.result()
 

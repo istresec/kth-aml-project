@@ -1,8 +1,6 @@
 from functools import reduce
 
-import numpy as np
 import tensorflow as tf
-from scipy.special import logsumexp
 
 from utils.GatedDenseLayer import GatedDenseLayer
 from utils.Hardtanh import Hardtanh
@@ -142,24 +140,6 @@ class VAE(tf.keras.Model):
         return samples_mean
 
 
-def compute_loglikelihood(model, x, n_samples=5000):
-    lls_block = None  # Will be a block/matrix of shape (n_samples, n_x)
-
-    for s in range(n_samples):
-        _, losses = compute_loss(model, x)
-        elbos = -np.asarray(losses)
-
-        if lls_block is None:
-            lls_block = np.zeros((n_samples, losses.shape[0]))
-        lls_block[s] = elbos
-
-    lls = logsumexp(lls_block, axis=0, return_sign=False) / n_samples
-    if np.any(np.isnan(lls)):
-        raise Exception(f"Inconsistent state, got a NaN loglikelihood! lls_block was: {lls_block}")
-    return np.mean(lls)
-
-
-@tf.function
 def compute_loss(model, x):
     """
     For computing loss of the VAE or CVAE model.
