@@ -1,5 +1,5 @@
 from utils.dataset_loading import load_dataset
-from models.VAE import VAE
+from models.VAE_legacy import VAE
 
 
 def test_vae(params):

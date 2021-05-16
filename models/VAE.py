@@ -1,284 +1,157 @@
-import tensorflow_probability as tfp
-import matplotlib.pyplot as plt
-import numpy as np
-from tensorflow.keras.layers import *
-import time
+from functools import reduce
 
-from utils.distributions import *
-from utils.Hardtanh import Hardtanh
-from models.BaseModel import BaseModel
+import tensorflow as tf
+
 from utils.GatedDenseLayer import GatedDenseLayer
-from utils.util import reparameterize
+from utils.Hardtanh import Hardtanh
+from utils.util import log_normal_pdf
 
 
-class VAE(BaseModel):
+class VAE(tf.keras.Model):
     """
-    Classic 1-layer VAE implementation.
+    Variational autoencoder with standard gaussian prior.
+
+    Uses gated dense layers for both encoder and decoder.
+
+    p(z) is the prior.
+    p(x given z) is modeled by a bernoulli distribution.
+    q(z given x) is modeled by a log-normal distribution.
     """
 
-    def __init__(self, params):
-        super(VAE, self).__init__(params)
-        self.params = params
+    def __init__(self, config):
+        super().__init__()
 
-        hidden_units = params['hidden-units']
-        latent_units = params['latent-units']
-        input_size = params['input-size']
+        self.config = config
+        self.latent_dim = config["latent-dim"]
+        self.hidden_dim = config["hidden-dim"]
+        self.input_shape_ = config["input-shape"]
+        input_element_length = reduce(lambda x, y: x * y, self.input_shape_)
 
         self.encoder = tf.keras.Sequential([
-            tf.keras.Input(shape=(input_size,)),
-            GatedDenseLayer(hidden_units),
-            GatedDenseLayer(hidden_units)
+            tf.keras.Input(shape=self.input_shape_),
+            tf.keras.layers.Flatten(),
+            GatedDenseLayer(self.hidden_dim),
+            GatedDenseLayer(self.hidden_dim)
         ])
-
         self.latent_mean = tf.keras.Sequential([
-            tf.keras.Input(shape=(hidden_units,)),
-            tf.keras.layers.Dense(latent_units)
+            tf.keras.Input(shape=(self.hidden_dim,)),
+            tf.keras.layers.Dense(self.latent_dim)
         ])
         self.latent_logvar = tf.keras.Sequential([
-            tf.keras.Input(shape=(hidden_units,)),
-            tf.keras.layers.Dense(latent_units, activation=Hardtanh(-6., 2.))
+            tf.keras.Input(shape=(self.hidden_dim,)),
+            tf.keras.layers.Dense(self.latent_dim, activation=Hardtanh(-6., 2.))
         ])
-
-        self.reparameterization = Lambda(reparameterize)
 
         self.decoder = tf.keras.Sequential([
-            tf.keras.Input(shape=(latent_units,)),
-            GatedDenseLayer(hidden_units),
-            GatedDenseLayer(hidden_units)
+            tf.keras.Input(shape=(self.latent_dim,)),
+            GatedDenseLayer(self.hidden_dim),
+            GatedDenseLayer(self.hidden_dim),
         ])
-        self.decoder_mean = tf.keras.Sequential([
-            tf.keras.Input(shape=(hidden_units,)),
-            tf.keras.layers.Dense(input_size, activation=tf.nn.sigmoid)
-        ])
-        self.decoder_logvar = tf.keras.Sequential([
-            tf.keras.Input(shape=(hidden_units,)),
-            tf.keras.layers.Dense(input_size, activation=Hardtanh(-4.5, 0.))
-        ])
+        if config["x-variable-type"] == "binary":
+            self.p_x_mean = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+        elif config["x-variable-type"] == "continuous":
+            self.p_x_mean = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+            self.p_x_logvar = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.hidden_dim,)),
+                tf.keras.layers.Dense(input_element_length, activation=Hardtanh(-6., 2.)),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
+        else:
+            raise Exception(f"Invalid value given for 'x-variable-type': value was '{config['x-variable-type']}'")
 
-        self.optimizer = tf.keras.optimizers.Adam(params['learning-rate'])
+        if self.config['prior'] == 'vampprior':
+            self.components = self.config['vamp-components']
 
-    def get_weights(self):
-        """
-        Gets all weights (all trainable variables).
-        :return: All network weights.
-        """
-        weights = self.encoder.trainable_variables
-        weights += self.latent_mean.trainable_variables
-        weights += self.latent_logvar.trainable_variables
-        weights += self.reparameterization.trainable_variables
-        weights += self.decoder.trainable_variables
-        weights += self.decoder_mean.trainable_variables
-        weights += self.decoder_logvar.trainable_variables
+            self.means = tf.keras.Sequential([
+                tf.keras.Input(shape=(self.components,)),
+                tf.keras.layers.Dense(input_element_length, activation=Hardtanh(0., 1.)),
+                tf.keras.layers.Reshape(target_shape=self.input_shape_)
+            ])
 
-        if self.params['prior'] == 'vampprior':
-            weights += self.means.trainable_variables
+            self.idle_input = tf.Variable(tf.eye(self.components, self.components, dtype=tf.float32))
 
-        return weights
+    def prior(self, z):
+        if self.config['prior'] == 'sg':
+            logz = log_normal_pdf(z, 0., 0.)
 
-    # TODO: possibly plot loss or ELBO of training and validation over epochs
-    def train(self, dataset, validation_dataset):
-        for epoch in range(self.params['epochs']):
-            start = time.time()
+            return logz
 
-            for x in dataset:
-                loss = self.train_step(x)
+        elif self.config['prior'] == 'vampprior':
+            c = tf.cast(self.components, tf.float32)
+            pseudo_inputs = self.means(self.idle_input)
+            mean, logvar = self.encode(pseudo_inputs)
 
-            print('Epoch {} took {} sec'.format(epoch + 1, time.time() - start))
-
-            if epoch % 10 == 0:
-                self.generate_and_save_images(epoch + 1)
-                self.evaluate_model(dataset, validation_dataset)
-
-        self.generate_and_save_images(self.params['epochs'] + 1)
-
-        self.plot_latent(20)
-
-    @tf.function
-    def train_step(self, x):
-        with tf.GradientTape() as self.tape:
-            loss, reconstruction_loss, kl_loss = self.loss(x, training=True)
-
-        # update weights using GradientTape (automatic differentiation of loss)
-        trainable_variables = self.get_weights()
-        grad = self.tape.gradient(loss, trainable_variables)
-        self.optimizer.apply_gradients(zip(grad, trainable_variables))
-
-    def forward_pass(self, x, training=False):
-        z_dist_encode = self.encoder(x, training=training)
-        z_mean = self.latent_mean(z_dist_encode, training=training)
-        z_logvar = self.latent_logvar(z_dist_encode, training=training)
-
-        # reparameterize
-        z = self.reparameterization([z_mean, z_logvar], training=training)
-
-        x_decode = self.decoder(z, training=training)
-        x_mean = self.decoder_mean(x_decode, training=training)
-        x_logvar = self.decoder_logvar(x_decode, training=training)
-
-        return z_mean, z_logvar, z, x_mean, x_logvar
-
-    @tf.function
-    def loss(self, x, beta=1., training=False, average_loss=False):
-        """
-        Calculates the loss, equal to the negative ELBO.
-
-        :param x: Data.
-        :param beta: Regularization coefficient, 1 by default.
-        :param training: Determines if the calculations will be used for training. False by default.
-        :param average_loss: Determines if the calculated loss is averaged or not. False (not averaged) by default.
-        :return: The loss (negative ELBO).
-        """
-
-        z_mean, z_logvar, z, x_mean, x_logvar = self.forward_pass(x, training=training)
-
-        reconstruction_loss = self.recon_loss(x, x_mean, x_logvar)
-        kl_loss = self.kl_loss(z, z_mean, z_logvar, training=training)
-        loss = -reconstruction_loss + beta * kl_loss
-
-        if average_loss:
-            loss = tf.reduce_mean(loss)
-            reconstruction_loss = tf.reduce_mean(reconstruction_loss)
-            kl_loss = tf.reduce_mean(kl_loss)
-
-        return loss, reconstruction_loss, kl_loss
-
-    def kl_loss(self, z, z_mean, z_logvar, training=False):
-        """
-        Calculates the Monte Carlo estimate of the Kullback-Leibler loss, negative KL term MC estimate of the ELBO.
-
-        :param z: A sample of the latent variables for which the KL loss is calculated.
-        :param z_mean: Means of the latent variables z.
-        :param z_logvar: Logarithm of the variance of the latent variables z.
-        :param training: Determines if the calculations will be used for training. False by default.
-        :return: The KL loss term.
-        """
-        log_p_z = self.prior(z, training=training)
-        log_q_z = log_normal_diag(z, z_mean, z_logvar, dim=1)
-        kl_loss = -(log_p_z - log_q_z)
-
-        return kl_loss
-
-    def recon_loss(self, x, x_mean, x_logvar):
-        """
-        Calculates the Monte Carlo estimate of the reconstruction loss, negative reconstruction term of the ELBO.
-        :param x:
-        :param x_mean:
-        :param x_logvar:
-        :return:
-        """
-        reconstruction_loss = -log_logistic(x, x_mean, x_logvar, dim=1)
-
-        return reconstruction_loss
-
-    def prior(self, z, training=False):
-
-        if self.params['prior'] == 'sg':
-            log_norm = -0.5 * tf.pow(z, 2)
-            return tf.math.reduce_sum(log_norm, 1)
-
-        elif self.params['prior'] == 'vampprior':
-            c = self.params['vamp-components']
-
-            # calculate parameters
-            x = self.means(self.default_input, training=training)
-
-            # calculate parameters for given data
-            z_mean = self.latent_mean(x, training=training)
-            z_logvar = self.latent_logvar(x, training=training)
-
-            # expand dim
             z = tf.expand_dims(z, 1)
-            z_mean = tf.expand_dims(z_mean, 0)
-            z_logvar = tf.expand_dims(z_logvar, 0)
+            mean = tf.expand_dims(mean, 0)
+            logvar = tf.expand_dims(logvar, 0)
 
-            a = log_normal_diag(z, z_mean, z_logvar, dim=2) - tf.math.log(tf.cast(c, tf.float32))
+            a = log_normal_pdf(z, mean, logvar, raxis=2) - tf.math.log(c)
             a_max = tf.math.reduce_max(a, 1)
 
-            return a_max + tf.math.log(tf.reduce_sum(tf.math.exp(a - tf.expand_dims(a_max, 1)), 1))
+            logz = a_max + tf.math.log(tf.reduce_sum(tf.math.exp(a - tf.expand_dims(a_max, 1)), 1))
 
-    # TODO: check if calculation is correct
-    def evaluate_model(self, x_train, x_val):
-        train_elbo = 0
-        train_norm = 0
-        val_elbo = 0
-        val_norm = 0
+            return logz
 
-        for x in x_train:
-            train_loss, _, _ = self.loss(x, training=False, average_loss=True)
-            train_elbo -= train_loss * x.shape[0]
-            train_norm += x.shape[0]
+    def encode(self, x):
+        z_dist_encode = self.encoder(x)
+        mean = self.latent_mean(z_dist_encode)
+        logvar = self.latent_logvar(z_dist_encode)
+        return mean, logvar
 
-        train_elbo /= train_norm
+    def reparametrize(self, mean, logvar):
+        eps = tf.random.normal(shape=mean.shape)
+        return eps * tf.exp(logvar * .5) + mean
 
-        for x in x_val:
-            val_loss, _, _ = self.loss(x, training=False, average_loss=True)
-            val_elbo -= val_loss * x.shape[0]
-            val_norm += x.shape[0]
+    def decode(self, z, apply_sigmoid=False):
+        hidden = self.decoder(z)
+        if self.config["x-variable-type"] == "binary":
+            logits = self.p_x_mean(hidden)
+            if apply_sigmoid:
+                probs = tf.sigmoid(logits)
+                return probs, None
+            return logits, None
+        elif self.config["x-variable-type"] == "continuous":
+            x_mean = self.p_x_mean(hidden)
+            x_logvar = self.p_x_logvar(hidden)
+            return x_mean, x_logvar
 
-        val_elbo /= val_norm
+    def generate_x(self, test_sample, n=1):
+        mean, logvar = self.encode(test_sample)
+        z = self.reparametrize(mean, logvar)
+        samples_mean, _ = self.decode(z, apply_sigmoid=True)
+        return samples_mean
 
-        print(f'Training ELBO: {train_elbo}, validation ELBO: {val_elbo}.')
 
-    def generate_x(self, N=16):
-        z_sample_rand = 0
-        if self.params['prior'] == 'sg':
-            z_sample_rand = tf.random.normal([N, self.params['latent-units']])
-        elif self.params['prior'] == 'vampprior':
-            means = self.means(self.default_input)[0:N]
-            z_sample_mean = self.latent_mean(means)
-            z_sample_logvar = self.latent_logvar(means)
+@tf.function
+def compute_loss(model, x, beta=1.):
+    """
+    For computing loss of the VAE or CVAE model.
+    :param model: VAE or CVAE model.
+    :param x: Current batch of data.
+    :return: The mean loss and all losses separately.
+    """
+    mean, logvar = model.encode(x)
+    z = model.reparametrize(mean, logvar)
+    x_mean, x_logvar = model.decode(z)
 
-            # reparameterize
-            z_sample_rand = reparameterize([z_sample_mean, z_sample_logvar])
+    if model.config["x-variable-type"] == "binary":
+        reduce_dims = tf.range(1, tf.rank(x))  # for example, returns [1, 2, 3] for dataset of 4 dimensional elements
+        cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_mean, labels=x)
+    elif model.config["x-variable-type"] == "continuous":
+        raise Exception("not impl")  # TODO
 
-        samples_rand = self.decoder_mean(self.decoder(z_sample_rand))
+    logpx_z = -tf.reduce_sum(cross_ent, axis=reduce_dims)
+    logz = model.prior(z)  # logz = log_normal_pdf(z, 0., 0.)
+    logqz_x = log_normal_pdf(z, mean, logvar)
 
-        return samples_rand
+    losses = - (logpx_z + beta*(logz - logqz_x))
 
-    def generate_and_save_images(self, epoch):
-        # _, _, _, predictions = self.forward_pass(self.seeded_input, training=False)
-        # gen = self.decoder(latent, training=False)
-        gen = self.generate_x(16)
-        gen = tf.reshape(gen, (16, 28, 28, 1))
-
-        fig = plt.figure(figsize=(4, 4))
-
-        for i in range(gen.shape[0]):
-            plt.subplot(4, 4, i + 1)
-            plt.imshow(gen[i, :, :, 0] * 255, cmap='gray')
-            plt.axis('off')
-
-        plt.savefig('images/vae_' + self.params['prior'] + '_image_at_epoch_{:04d}.png'.format(epoch))
-        plt.close()
-
-    # TODO: remove if useless (designed for 2 latent variables, SG prior and MNIST only)
-    def plot_latent(self, n, digit_size=28):
-        # https://www.tensorflow.org/tutorials/generative/cvae
-        """
-        Plots a 2D manifolds of digits from the latent space.
-        Not executed if there are less or more than 2 latent units/variables.
-        :param n: Number of values per latent variable, final image is n x n digits.
-        :param digit_size: Square dimension of each digit.
-        """
-        if self.params['latent-units'] != 2:
-            pass
-
-        norm = tfp.distributions.Normal(0, 1)
-        grid_x = norm.quantile(np.linspace(0.05, 0.95, n))
-        grid_y = norm.quantile(np.linspace(0.05, 0.95, n))
-        image_width = digit_size * n
-        image_height = image_width
-        image = np.zeros((image_height, image_width))
-
-        for i, yi in enumerate(grid_x):
-            for j, xi in enumerate(grid_y):
-                z = np.array([[xi, yi]])
-                x_decoded = self.decoder_mean(self.decoder(z))
-                digit = tf.reshape(x_decoded[0], (digit_size, digit_size))
-                image[i * digit_size: (i + 1) * digit_size,
-                j * digit_size: (j + 1) * digit_size] = digit.numpy()
-
-        plt.figure(figsize=(10, 10))
-        plt.imshow(image, cmap='Greys_r')
-        plt.axis('Off')
-        plt.show()
+    return tf.reduce_mean(losses), losses
